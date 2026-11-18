@@ -37,12 +37,19 @@ namespace Moderation.Commands
             {
                 targetSteamId = onlineTarget.CSteamID.m_SteamID;
                 targetName = onlineTarget.CharacterName;
-                ip = PlayerUtil.GetIPString(onlineTarget.SteamPlayer());
-                hwid = PlayerUtil.GetHwidsString(onlineTarget.SteamPlayer().playerID);
+                ip = onlineTarget.IP;
+                if (string.IsNullOrEmpty(ip) && onlineTarget.Player?.channel?.owner != null)
+                {
+                    ip = PlayerUtil.GetIPString(onlineTarget.Player.channel.owner);
+                }
+                if (onlineTarget.Player?.channel?.owner?.playerID != null)
+                {
+                    hwid = PlayerUtil.GetHwidsString(onlineTarget.Player.channel.owner.playerID);
+                }
             }
             else if (PlayerUtil.TryParseSteamID(targetArg, out targetSteamId))
             {
-                PlayerRecord offlineRec = plugin.DatabaseService.GetPlayer(targetSteamId);
+                PlayerRecord offlineRec = plugin?.DatabaseService?.GetPlayer(targetSteamId);
                 if (offlineRec != null)
                 {
                     targetName = offlineRec.SteamName ?? targetSteamId.ToString();
@@ -76,7 +83,7 @@ namespace Moderation.Commands
                 }
             }
 
-            if (plugin.Configuration.Instance.Commands.ShouldRequireReason && string.IsNullOrWhiteSpace(reason))
+            if (plugin?.Configuration?.Instance?.Commands?.ShouldRequireReason == true && string.IsNullOrWhiteSpace(reason))
             {
                 UnturnedChat.Say(caller, plugin.Translate("RequireReason"), plugin.MessageColor);
                 return;

@@ -27,7 +27,7 @@ namespace Moderation.Services
         public MuteService(ModerationPlugin plugin, MuteServiceConfiguration config, DatabaseService databaseService, DiscordWebhookService discordService)
         {
             this.plugin = plugin;
-            this.config = config;
+            this.config = config ?? new MuteServiceConfiguration();
             this.databaseService = databaseService;
             this.discordService = discordService;
         }
@@ -55,46 +55,72 @@ namespace Moderation.Services
         public void OnPlayerConnected(UnturnedPlayer player)
         {
             if (player == null) return;
-            ulong steamId = player.CSteamID.m_SteamID;
-            var mute = databaseService.GetActiveMute(steamId);
-            if (mute != null && !mute.IsExpired && config.EnableVoiceChatMute)
+            try
             {
-                player.Player.voice.ServerSetPermissions(player.Player.voice.GetAllowTalkingWhileDead(), false);
+                ulong steamId = player.CSteamID.m_SteamID;
+                if (steamId == 0) return;
+
+                var mute = databaseService?.GetActiveMute(steamId);
+                if (mute != null && !mute.IsExpired && config.EnableVoiceChatMute)
+                {
+                    if (player.Player?.voice != null)
+                    {
+                        player.Player.voice.ServerSetPermissions(player.Player.voice.GetAllowTalkingWhileDead(), false);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning($"[Moderation] Exception in MuteService.OnPlayerConnected: {ex.Message}");
             }
         }
 
         private void OnChatted(SteamPlayer player, EChatMode mode, ref Color chatted, ref bool isRich, string text, ref bool isVisible)
         {
-            if (player == null) return;
-            ulong steamId = player.playerID.steamID.m_SteamID;
-            var mute = databaseService.GetActiveMute(steamId);
-            if (mute != null && !mute.IsExpired)
+            if (player?.playerID?.steamID == null) return;
+            try
             {
-                isVisible = false;
-                string reason = string.IsNullOrEmpty(mute.Reason) ? plugin.Translate("ReasonUnspecified") : mute.Reason;
-                string duration = mute.Duration == 0 ? plugin.Translate("Permanent") : DurationParser.FormatDuration(mute.RemainingSeconds);
-                UnturnedChat.Say(player.playerID.steamID, plugin.Translate("MuteMessage", reason, duration), plugin.MessageColor);
+                ulong steamId = player.playerID.steamID.m_SteamID;
+                var mute = databaseService?.GetActiveMute(steamId);
+                if (mute != null && !mute.IsExpired)
+                {
+                    isVisible = false;
+                    string reason = string.IsNullOrEmpty(mute.Reason) ? (plugin?.Translate("ReasonUnspecified") ?? "Unspecified") : mute.Reason;
+                    string duration = mute.Duration == 0 ? (plugin?.Translate("Permanent") ?? "permanent") : DurationParser.FormatDuration(mute.RemainingSeconds);
+                    UnturnedChat.Say(player.playerID.steamID, plugin?.Translate("MuteMessage", reason, duration) ?? $"You are muted for {reason} ({duration})", plugin?.MessageColor ?? Color.grey);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning($"[Moderation] Exception in OnChatted: {ex.Message}");
             }
         }
 
         private void OnRelayVoice(PlayerVoice speaker, bool wantsToUseWalkieTalkie, ref bool shouldAllow, ref bool shouldBroadcastOverRadio, ref PlayerVoice.RelayVoiceCullingHandler cullingHandler)
         {
-            if (speaker == null || speaker.player == null) return;
-            ulong steamId = speaker.player.channel.owner.playerID.steamID.m_SteamID;
-            var mute = databaseService.GetActiveMute(steamId);
-            if (mute != null && !mute.IsExpired)
+            if (speaker?.player?.channel?.owner?.playerID?.steamID == null) return;
+            try
             {
-                shouldAllow = false;
-                if (config.EnableVoiceChatMute)
+                ulong steamId = speaker.player.channel.owner.playerID.steamID.m_SteamID;
+                var mute = databaseService?.GetActiveMute(steamId);
+                if (mute != null && !mute.IsExpired)
                 {
-                    speaker.ServerSetPermissions(speaker.GetAllowTalkingWhileDead(), false);
-                    if (ShouldThrottleVoice(steamId))
+                    shouldAllow = false;
+                    if (config.EnableVoiceChatMute)
                     {
-                        string reason = string.IsNullOrEmpty(mute.Reason) ? plugin.Translate("ReasonUnspecified") : mute.Reason;
-                        string duration = mute.Duration == 0 ? plugin.Translate("Permanent") : DurationParser.FormatDuration(mute.RemainingSeconds);
-                        UnturnedChat.Say(speaker.player.channel.owner.playerID.steamID, plugin.Translate("MuteVoice", reason, duration), plugin.MessageColor);
+                        speaker.ServerSetPermissions(speaker.GetAllowTalkingWhileDead(), false);
+                        if (ShouldThrottleVoice(steamId))
+                        {
+                            string reason = string.IsNullOrEmpty(mute.Reason) ? (plugin?.Translate("ReasonUnspecified") ?? "Unspecified") : mute.Reason;
+                            string duration = mute.Duration == 0 ? (plugin?.Translate("Permanent") ?? "permanent") : DurationParser.FormatDuration(mute.RemainingSeconds);
+                            UnturnedChat.Say(speaker.player.channel.owner.playerID.steamID, plugin?.Translate("MuteVoice", reason, duration) ?? $"Voice chat blocked: {reason} ({duration})", plugin?.MessageColor ?? Color.grey);
+                        }
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning($"[Moderation] Exception in OnRelayVoice: {ex.Message}");
             }
         }
 
@@ -115,22 +141,29 @@ namespace Moderation.Services
 
         private void OnExecuteCommand(IRocketPlayer player, IRocketCommand command, ref bool cancel)
         {
-            if (!config.EnableBlockCommands || config.BlockCommands == null || player == null || player is ConsolePlayer)
+            if (!config.EnableBlockCommands || config.BlockCommands == null || player == null || player is ConsolePlayer || command == null)
                 return;
 
-            if (ulong.TryParse(player.Id, out ulong steamId))
+            try
             {
-                var mute = databaseService.GetActiveMute(steamId);
-                if (mute != null && !mute.IsExpired)
+                if (ulong.TryParse(player.Id, out ulong steamId))
                 {
-                    if (config.BlockCommands.Exists(c => string.Equals(c, command.Name, StringComparison.OrdinalIgnoreCase)))
+                    var mute = databaseService?.GetActiveMute(steamId);
+                    if (mute != null && !mute.IsExpired)
                     {
-                        cancel = true;
-                        string reason = string.IsNullOrEmpty(mute.Reason) ? plugin.Translate("ReasonUnspecified") : mute.Reason;
-                        string duration = mute.Duration == 0 ? plugin.Translate("Permanent") : DurationParser.FormatDuration(mute.RemainingSeconds);
-                        UnturnedChat.Say(player, plugin.Translate("MuteBlockCommand", reason, duration), plugin.MessageColor);
+                        if (config.BlockCommands.Exists(c => string.Equals(c, command.Name, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            cancel = true;
+                            string reason = string.IsNullOrEmpty(mute.Reason) ? (plugin?.Translate("ReasonUnspecified") ?? "Unspecified") : mute.Reason;
+                            string duration = mute.Duration == 0 ? (plugin?.Translate("Permanent") ?? "permanent") : DurationParser.FormatDuration(mute.RemainingSeconds);
+                            UnturnedChat.Say(player, plugin?.Translate("MuteBlockCommand", reason, duration) ?? $"Command blocked: {reason} ({duration})", plugin?.MessageColor ?? Color.grey);
+                        }
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning($"[Moderation] Exception in OnExecuteCommand: {ex.Message}");
             }
         }
 
@@ -138,20 +171,25 @@ namespace Moderation.Services
         {
             try
             {
-                var mutes = databaseService.GetActiveMutes();
+                var mutes = databaseService?.GetActiveMutes();
+                if (mutes == null) return;
+
                 foreach (var mute in mutes)
                 {
-                    if (mute.IsExpired)
+                    if (mute != null && mute.IsExpired)
                     {
-                        databaseService.RemoveMute(mute.SteamID, "Console");
+                        databaseService?.RemoveMute(mute.SteamID, "Console");
                         UnturnedPlayer online = UnturnedPlayer.FromCSteamID(new CSteamID(mute.SteamID));
                         if (online != null)
                         {
-                            online.Player.voice.ServerSetPermissions(online.Player.voice.GetAllowTalkingWhileDead(), true);
-                            UnturnedChat.Say(online, plugin.Translate("UnmuteExpired", mute.SteamName ?? online.CharacterName), plugin.MessageColor);
+                            if (online.Player?.voice != null)
+                            {
+                                online.Player.voice.ServerSetPermissions(online.Player.voice.GetAllowTalkingWhileDead(), true);
+                            }
+                            UnturnedChat.Say(online, plugin?.Translate("UnmuteExpired", mute.SteamName ?? online.CharacterName) ?? "Your mute has expired.", plugin?.MessageColor ?? Color.grey);
                         }
 
-                        if (config.EnableUnmuteWebhooks)
+                        if (config.EnableUnmuteWebhooks && discordService != null)
                         {
                             var placeholders = new Dictionary<string, string>
                             {
@@ -160,11 +198,15 @@ namespace Moderation.Services
                                 ["reason"] = mute.Reason ?? "Unspecified",
                                 ["punisher_name"] = mute.PunisherName ?? "Console",
                                 ["punisher_steamid"] = mute.PunisherSteamID.ToString(),
-                                ["server_name"] = Provider.serverName,
-                                ["server_icon"] = plugin.Configuration.Instance.Commands.MessageIconUrl,
-                                ["avatar_url"] = plugin.Configuration.Instance.Commands.MessageIconUrl
+                                ["server_name"] = Provider.serverName ?? "Unturned Server",
+                                ["server_icon"] = plugin?.Configuration?.Instance?.Commands?.MessageIconUrl ?? string.Empty,
+                                ["avatar_url"] = plugin?.Configuration?.Instance?.Commands?.MessageIconUrl ?? string.Empty
                             };
-                            discordService.SendWebhookList(plugin.Configuration.Instance.DiscordService.MuteExpiredWebhookMessages, placeholders);
+                            var webhooks = plugin?.Configuration?.Instance?.DiscordService?.MuteExpiredWebhookMessages;
+                            if (webhooks != null)
+                            {
+                                discordService.SendWebhookList(webhooks, placeholders);
+                            }
                         }
                     }
                 }

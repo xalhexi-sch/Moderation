@@ -7,14 +7,19 @@ namespace Moderation
 {
     public class ModerationConfiguration : IRocketPluginConfiguration
     {
-        public CommandsConfiguration Commands { get; set; }
-        public DatabaseConfiguration Database { get; set; }
-        public PlayerServiceConfiguration PlayerService { get; set; }
-        public UnbanServiceConfiguration UnbanService { get; set; }
-        public MuteServiceConfiguration MuteService { get; set; }
-        public DiscordServiceConfiguration DiscordService { get; set; }
-        public CooldownServiceConfiguration CooldownService { get; set; }
-        public UCSServiceConfiguration UCSService { get; set; }
+        public CommandsConfiguration Commands { get; set; } = new CommandsConfiguration();
+        public DatabaseConfiguration Database { get; set; } = new DatabaseConfiguration();
+        public PlayerServiceConfiguration PlayerService { get; set; } = new PlayerServiceConfiguration();
+        public UnbanServiceConfiguration UnbanService { get; set; } = new UnbanServiceConfiguration();
+        public MuteServiceConfiguration MuteService { get; set; } = new MuteServiceConfiguration();
+        public DiscordServiceConfiguration DiscordService { get; set; } = new DiscordServiceConfiguration();
+        public CooldownServiceConfiguration CooldownService { get; set; } = new CooldownServiceConfiguration();
+        public UCSServiceConfiguration UCSService { get; set; } = new UCSServiceConfiguration();
+
+        public ModerationConfiguration()
+        {
+            LoadDefaults();
+        }
 
         public void LoadDefaults()
         {
@@ -392,101 +397,101 @@ namespace Moderation
 
     public class CommandsConfiguration
     {
-        public string MessageColor { get; set; }
-        public string MessageIconUrl { get; set; }
-        public bool ShouldRequireReason { get; set; }
-        public bool ShouldBroadcastBan { get; set; }
-        public bool ShouldBroadcastUnban { get; set; }
-        public bool UseHwidBans { get; set; }
-        public bool UseIPBans { get; set; }
+        public string MessageColor { get; set; } = "grey";
+        public string MessageIconUrl { get; set; } = "https://i.imgur.com/ceyPI5h.png";
+        public bool ShouldRequireReason { get; set; } = true;
+        public bool ShouldBroadcastBan { get; set; } = true;
+        public bool ShouldBroadcastUnban { get; set; } = true;
+        public bool UseHwidBans { get; set; } = true;
+        public bool UseIPBans { get; set; } = false;
     }
 
     public class DatabaseConfiguration
     {
-        public string MySQLAddress { get; set; }
-        public string MySQLUsername { get; set; }
-        public string MySQLPassword { get; set; }
-        public string MySQLDatabase { get; set; }
-        public int MySQLDatabasePort { get; set; }
-        public string PlayersTableName { get; set; }
-        public string BansTableName { get; set; }
-        public string MutesTableName { get; set; }
-        public string PunishmentsTableName { get; set; }
-        public bool EnableGameThreadWarnings { get; set; }
+        public string MySQLAddress { get; set; } = "127.0.0.1";
+        public string MySQLUsername { get; set; } = "root";
+        public string MySQLPassword { get; set; } = "password123";
+        public string MySQLDatabase { get; set; } = "unturned";
+        public int MySQLDatabasePort { get; set; } = 3306;
+        public string PlayersTableName { get; set; } = "Players";
+        public string BansTableName { get; set; } = "Bans";
+        public string MutesTableName { get; set; } = "Mutes";
+        public string PunishmentsTableName { get; set; } = "Punishments";
+        public bool EnableGameThreadWarnings { get; set; } = true;
     }
 
     public class PlayerServiceConfiguration
     {
-        public bool ShouldSaveCountry { get; set; }
+        public bool ShouldSaveCountry { get; set; } = true;
     }
 
     public class UnbanServiceConfiguration
     {
-        public string Comment { get; set; }
-        public string Comment2 { get; set; }
-        public bool IsEnabled { get; set; }
-        public int RefreshTimeSeconds { get; set; }
+        public string Comment { get; set; } = "If you have multiple servers, this should be enabled only on one of them.";
+        public string Comment2 { get; set; } = "It sends unban webhooks to discord.";
+        public bool IsEnabled { get; set; } = false;
+        public int RefreshTimeSeconds { get; set; } = 30;
     }
 
     public class MuteServiceConfiguration
     {
-        public int CacheTimeSeconds { get; set; }
-        public string Comment { get; set; }
-        public bool EnableUnmuteWebhooks { get; set; }
-        public int UnmuteRefreshTimeSeconds { get; set; }
-        public bool EnableVoiceChatMute { get; set; }
-        public int VoiceChatThrottleMessagesSeconds { get; set; }
-        public bool EnableBlockCommands { get; set; }
+        public int CacheTimeSeconds { get; set; } = 30;
+        public string Comment { get; set; } = "The below EnableUnmuteWebhooks option should only be enabled on one server if you have multiple servers.";
+        public bool EnableUnmuteWebhooks { get; set; } = true;
+        public int UnmuteRefreshTimeSeconds { get; set; } = 30;
+        public bool EnableVoiceChatMute { get; set; } = true;
+        public int VoiceChatThrottleMessagesSeconds { get; set; } = 3;
+        public bool EnableBlockCommands { get; set; } = false;
 
         [XmlArrayItem("BlockCommand")]
-        public List<string> BlockCommands { get; set; }
+        public List<string> BlockCommands { get; set; } = new List<string> { "pm" };
     }
 
     public class DiscordServiceConfiguration
     {
-        public bool UseWebhooks { get; set; }
+        public bool UseWebhooks { get; set; } = true;
 
         [XmlArrayItem("WebhookMessage")]
-        public List<WebhookMessage> BanWebhookMessages { get; set; }
+        public List<WebhookMessage> BanWebhookMessages { get; set; } = new List<WebhookMessage>();
 
         [XmlArrayItem("WebhookMessage")]
-        public List<WebhookMessage> KickWebhookMessages { get; set; }
+        public List<WebhookMessage> KickWebhookMessages { get; set; } = new List<WebhookMessage>();
 
         [XmlArrayItem("WebhookMessage")]
-        public List<WebhookMessage> WarnWebhookMessages { get; set; }
+        public List<WebhookMessage> WarnWebhookMessages { get; set; } = new List<WebhookMessage>();
 
         [XmlArrayItem("WebhookMessage")]
-        public List<WebhookMessage> UnbanWebhookMessages { get; set; }
+        public List<WebhookMessage> UnbanWebhookMessages { get; set; } = new List<WebhookMessage>();
 
         [XmlArrayItem("WebhookMessage")]
-        public List<WebhookMessage> MuteWebhookMessages { get; set; }
+        public List<WebhookMessage> MuteWebhookMessages { get; set; } = new List<WebhookMessage>();
 
         [XmlArrayItem("WebhookMessage")]
-        public List<WebhookMessage> UnmuteWebhookMessages { get; set; }
+        public List<WebhookMessage> UnmuteWebhookMessages { get; set; } = new List<WebhookMessage>();
 
         [XmlArrayItem("WebhookMessage")]
-        public List<WebhookMessage> BanExpiredWebhookMessages { get; set; }
+        public List<WebhookMessage> BanExpiredWebhookMessages { get; set; } = new List<WebhookMessage>();
 
         [XmlArrayItem("WebhookMessage")]
-        public List<WebhookMessage> MuteExpiredWebhookMessages { get; set; }
+        public List<WebhookMessage> MuteExpiredWebhookMessages { get; set; } = new List<WebhookMessage>();
 
         [XmlArrayItem("WebhookMessage")]
-        public List<WebhookMessage> SpyWebhookMessages { get; set; }
+        public List<WebhookMessage> SpyWebhookMessages { get; set; } = new List<WebhookMessage>();
 
         [XmlArrayItem("WebhookMessage")]
-        public List<WebhookMessage> BanEvaderWebhookMessages { get; set; }
+        public List<WebhookMessage> BanEvaderWebhookMessages { get; set; } = new List<WebhookMessage>();
     }
 
     public class WebhookMessage
     {
         [XmlAttribute]
-        public bool Enabled { get; set; }
-        public string WebhookUrl { get; set; }
-        public string Username { get; set; }
-        public string AvatarUrl { get; set; }
+        public bool Enabled { get; set; } = false;
+        public string WebhookUrl { get; set; } = "";
+        public string Username { get; set; } = "Moderation";
+        public string AvatarUrl { get; set; } = "";
 
         [XmlArrayItem("Embed")]
-        public List<DiscordEmbed> Embeds { get; set; }
+        public List<DiscordEmbed> Embeds { get; set; } = new List<DiscordEmbed>();
     }
 
     public class DiscordEmbed
@@ -498,7 +503,7 @@ namespace Moderation
         public EmbedThumbnail Thumbnail { get; set; }
 
         [XmlArrayItem("Field")]
-        public List<EmbedField> Fields { get; set; }
+        public List<EmbedField> Fields { get; set; } = new List<EmbedField>();
 
         public EmbedFooter Footer { get; set; }
         public bool WithCurrentTimestamp { get; set; }
@@ -540,25 +545,25 @@ namespace Moderation
     public class CooldownServiceConfiguration
     {
         [XmlArrayItem("CooldownKey")]
-        public List<CooldownKey> Cooldowns { get; set; }
+        public List<CooldownKey> Cooldowns { get; set; } = new List<CooldownKey>();
     }
 
     public class CooldownKey
     {
         [XmlAttribute]
-        public string Key { get; set; }
+        public string Key { get; set; } = "";
         [XmlAttribute]
-        public int Cooldown { get; set; }
+        public int Cooldown { get; set; } = 0;
     }
 
     public class UCSServiceConfiguration
     {
         [XmlAttribute]
-        public bool Enabled { get; set; }
-        public int TimeoutMiliseconds { get; set; }
-        public string APIKey { get; set; }
-        public string ServerName { get; set; }
-        public bool CheckHWIDs { get; set; }
-        public bool CheckIPs { get; set; }
+        public bool Enabled { get; set; } = false;
+        public int TimeoutMiliseconds { get; set; } = 5000;
+        public string APIKey { get; set; } = "APIKey";
+        public string ServerName { get; set; } = "ServerName";
+        public bool CheckHWIDs { get; set; } = true;
+        public bool CheckIPs { get; set; } = true;
     }
 }

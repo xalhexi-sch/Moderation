@@ -44,19 +44,26 @@ namespace Moderation.Utils
         public static string GetHwidsString(SteamPlayerID playerID)
         {
             if (playerID == null) return string.Empty;
-            IEnumerable<byte[]> hwids = playerID.GetHwids();
-            if (hwids == null) return string.Empty;
-
-            List<string> hexHwids = new List<string>();
-            foreach (byte[] hwid in hwids)
+            try
             {
-                if (hwid != null && hwid.Length > 0)
-                {
-                    hexHwids.Add(BitConverter.ToString(hwid).Replace("-", ""));
-                }
-            }
+                IEnumerable<byte[]> hwids = playerID.GetHwids();
+                if (hwids == null) return string.Empty;
 
-            return string.Join(";", hexHwids);
+                List<string> hexHwids = new List<string>();
+                foreach (byte[] hwid in hwids)
+                {
+                    if (hwid != null && hwid.Length > 0)
+                    {
+                        hexHwids.Add(BitConverter.ToString(hwid).Replace("-", ""));
+                    }
+                }
+
+                return string.Join(";", hexHwids);
+            }
+            catch
+            {
+                return string.Empty;
+            }
         }
 
         public static string GetIPString(SteamPlayer steamPlayer)
@@ -64,13 +71,14 @@ namespace Moderation.Utils
             if (steamPlayer == null) return string.Empty;
             try
             {
-                string addr = steamPlayer.getAddressString(false);
-                return addr ?? string.Empty;
+                if (steamPlayer.transportConnection != null)
+                {
+                    string addr = steamPlayer.transportConnection.GetAddressString(false);
+                    if (!string.IsNullOrEmpty(addr)) return addr;
+                }
             }
-            catch
-            {
-                return string.Empty;
-            }
+            catch { }
+            return string.Empty;
         }
     }
 }

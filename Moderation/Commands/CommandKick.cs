@@ -25,7 +25,7 @@ namespace Moderation.Commands
             }
 
             UnturnedPlayer targetPlayer = PlayerUtil.FindPlayer(command[0]);
-            if (targetPlayer == null)
+            if (targetPlayer?.Player == null)
             {
                 UnturnedChat.Say(caller, plugin.Translate("PlayerNotFound"), plugin.MessageColor);
                 return;
@@ -37,7 +37,7 @@ namespace Moderation.Commands
                 reason = string.Join(" ", command, 1, command.Length - 1);
             }
 
-            if (plugin.Configuration.Instance.Commands.ShouldRequireReason && string.IsNullOrWhiteSpace(reason))
+            if (plugin?.Configuration?.Instance?.Commands?.ShouldRequireReason == true && string.IsNullOrWhiteSpace(reason))
             {
                 UnturnedChat.Say(caller, plugin.Translate("RequireReason"), plugin.MessageColor);
                 return;

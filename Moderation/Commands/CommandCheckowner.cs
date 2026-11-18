@@ -23,6 +23,8 @@ namespace Moderation.Commands
             var plugin = ModerationPlugin.Instance;
             UnturnedPlayer player = (UnturnedPlayer)caller;
 
+            if (player?.Player?.look?.aim == null) return;
+
             int mask = RayMasks.BARRICADE | RayMasks.STRUCTURE | RayMasks.VEHICLE;
             if (!Physics.Raycast(player.Player.look.aim.position, player.Player.look.aim.forward, out RaycastHit hit, 50f, mask))
             {
@@ -34,41 +36,53 @@ namespace Moderation.Commands
             string objectType = null;
 
             // Check Barricade
-            BarricadeDrop barricade = BarricadeManager.FindBarricadeByRootTransform(hit.transform);
-            if (barricade != null)
+            try
             {
-                var data = barricade.GetServersideData();
-                if (data != null)
+                BarricadeDrop barricade = BarricadeManager.FindBarricadeByRootTransform(hit.transform);
+                if (barricade != null)
                 {
-                    ownerId = data.owner;
-                    objectType = "barricade";
+                    var data = barricade.GetServersideData();
+                    if (data != null)
+                    {
+                        ownerId = data.owner;
+                        objectType = "barricade";
+                    }
                 }
             }
+            catch { }
 
             // Check Structure
             if (ownerId == 0)
             {
-                StructureDrop structure = StructureManager.FindStructureByRootTransform(hit.transform);
-                if (structure != null)
+                try
                 {
-                    var data = structure.GetServersideData();
-                    if (data != null)
+                    StructureDrop structure = StructureManager.FindStructureByRootTransform(hit.transform);
+                    if (structure != null)
                     {
-                        ownerId = data.owner;
-                        objectType = "structure";
+                        var data = structure.GetServersideData();
+                        if (data != null)
+                        {
+                            ownerId = data.owner;
+                            objectType = "structure";
+                        }
                     }
                 }
+                catch { }
             }
 
             // Check Vehicle
             if (ownerId == 0)
             {
-                InteractableVehicle vehicle = DamageTool.getVehicle(hit.transform);
-                if (vehicle != null && vehicle.isLocked)
+                try
                 {
-                    ownerId = vehicle.lockedOwner.m_SteamID;
-                    objectType = "locked vehicle";
+                    InteractableVehicle vehicle = DamageTool.getVehicle(hit.transform);
+                    if (vehicle != null && vehicle.isLocked && vehicle.lockedOwner.m_SteamID != 0)
+                    {
+                        ownerId = vehicle.lockedOwner.m_SteamID;
+                        objectType = "locked vehicle";
+                    }
                 }
+                catch { }
             }
 
             if (ownerId == 0 || string.IsNullOrEmpty(objectType))
@@ -77,10 +91,10 @@ namespace Moderation.Commands
                 return;
             }
 
-            var activeBan = plugin.DatabaseService.GetActiveBan(ownerId);
+            var activeBan = plugin?.DatabaseService?.GetActiveBan(ownerId);
             bool isBanned = activeBan != null && !activeBan.IsExpired;
 
-            PlayerRecord playerRec = plugin.DatabaseService.GetPlayer(ownerId);
+            PlayerRecord playerRec = plugin?.DatabaseService?.GetPlayer(ownerId);
             string ownerName = playerRec != null && !string.IsNullOrEmpty(playerRec.SteamName) ? playerRec.SteamName : ownerId.ToString();
 
             UnturnedChat.Say(caller, plugin.Translate("CheckownerOwnerName", objectType, ownerName, isBanned), plugin.MessageColor);

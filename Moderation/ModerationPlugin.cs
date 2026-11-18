@@ -30,7 +30,7 @@ namespace Moderation
             {
                 try
                 {
-                    string colorName = Configuration.Instance.Commands.MessageColor;
+                    string colorName = Configuration?.Instance?.Commands?.MessageColor;
                     if (!string.IsNullOrEmpty(colorName))
                     {
                         return UnturnedChat.GetColorFromName(colorName, Color.grey);
@@ -45,47 +45,84 @@ namespace Moderation
         {
             Instance = this;
 
-            DatabaseService = new DatabaseService(Configuration.Instance.Database);
-            DatabaseService.Initialize();
+            try
+            {
+                if (Configuration != null && Configuration.Instance == null)
+                {
+                    Configuration.Instance = new ModerationConfiguration();
+                    Configuration.Instance.LoadDefaults();
+                }
 
-            DiscordWebhookService = new DiscordWebhookService(Configuration.Instance.DiscordService);
-            CooldownService = new CooldownService(Configuration.Instance.CooldownService);
-            UCSService = new UCSService(this, Configuration.Instance.UCSService);
-            GlitchService = new GlitchService();
+                var config = Configuration?.Instance ?? new ModerationConfiguration();
+                if (config.Commands == null) config.Commands = new CommandsConfiguration();
+                if (config.Database == null) config.Database = new DatabaseConfiguration();
+                if (config.PlayerService == null) config.PlayerService = new PlayerServiceConfiguration();
+                if (config.UnbanService == null) config.UnbanService = new UnbanServiceConfiguration();
+                if (config.MuteService == null) config.MuteService = new MuteServiceConfiguration();
+                if (config.DiscordService == null) config.DiscordService = new DiscordServiceConfiguration();
+                if (config.CooldownService == null) config.CooldownService = new CooldownServiceConfiguration();
+                if (config.UCSService == null) config.UCSService = new UCSServiceConfiguration();
 
-            ModerationService = new ModerationService(this, DatabaseService, DiscordWebhookService, UCSService);
-            ModerationService.Initialize();
+                DatabaseService = new DatabaseService(config.Database);
+                DatabaseService.Initialize();
 
-            PlayerService = new PlayerService(Configuration.Instance.PlayerService, DatabaseService);
+                DiscordWebhookService = new DiscordWebhookService(config.DiscordService);
+                CooldownService = new CooldownService(config.CooldownService);
+                UCSService = new UCSService(this, config.UCSService);
+                GlitchService = new GlitchService();
 
-            MuteService = new MuteService(this, Configuration.Instance.MuteService, DatabaseService, DiscordWebhookService);
-            MuteService.Initialize();
+                ModerationService = new ModerationService(this, DatabaseService, DiscordWebhookService, UCSService);
+                ModerationService.Initialize();
 
-            UnbanService = new UnbanService(this, Configuration.Instance.UnbanService, DatabaseService, DiscordWebhookService);
-            UnbanService.Initialize();
+                PlayerService = new PlayerService(config.PlayerService, DatabaseService);
 
-            U.Events.OnPlayerConnected += OnPlayerConnected;
+                MuteService = new MuteService(this, config.MuteService, DatabaseService, DiscordWebhookService);
+                MuteService.Initialize();
 
-            Logger.Log($"[Moderation] {Name} {Assembly.GetName().Version} loaded successfully.");
-            Logger.Log("[Moderation] Credits to Sun Beam and Soer for mutes update.");
+                UnbanService = new UnbanService(this, config.UnbanService, DatabaseService, DiscordWebhookService);
+                UnbanService.Initialize();
+
+                U.Events.OnPlayerConnected += OnPlayerConnected;
+
+                Logger.Log($"[Moderation] {Name} {Assembly.GetName().Version} loaded successfully.");
+                Logger.Log("[Moderation] Credits to Sun Beam and Soer for mutes update.");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning($"[Moderation] Exception in Load(): {ex}");
+            }
         }
 
         protected override void Unload()
         {
-            U.Events.OnPlayerConnected -= OnPlayerConnected;
+            try
+            {
+                U.Events.OnPlayerConnected -= OnPlayerConnected;
 
-            MuteService?.Shutdown();
-            UnbanService?.Shutdown();
-            ModerationService?.Shutdown();
+                MuteService?.Shutdown();
+                UnbanService?.Shutdown();
+                ModerationService?.Shutdown();
 
-            Instance = null;
-            Logger.Log($"[Moderation] {Name} unloaded.");
+                Instance = null;
+                Logger.Log($"[Moderation] {Name} unloaded.");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning($"[Moderation] Exception in Unload(): {ex}");
+            }
         }
 
         private void OnPlayerConnected(UnturnedPlayer player)
         {
-            PlayerService?.OnPlayerConnected(player);
-            MuteService?.OnPlayerConnected(player);
+            try
+            {
+                PlayerService?.OnPlayerConnected(player);
+                MuteService?.OnPlayerConnected(player);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning($"[Moderation] Exception in OnPlayerConnected: {ex.Message}");
+            }
         }
 
         public override TranslationList DefaultTranslations => new TranslationList

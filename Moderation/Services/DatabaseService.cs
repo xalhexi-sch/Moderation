@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using System.Threading;
 using Moderation.Models;
 using MySqlConnector;
@@ -20,7 +21,7 @@ namespace Moderation.Services
 
         public DatabaseService(DatabaseConfiguration config)
         {
-            this.config = config;
+            this.config = config ?? new DatabaseConfiguration();
         }
 
         private string ConnectionString =>
@@ -135,21 +136,25 @@ CREATE TABLE IF NOT EXISTS `{config.PunishmentsTableName}` (
                         var list = new List<BanRecord>();
                         while (reader.Read())
                         {
-                            list.Add(new BanRecord
+                            try
                             {
-                                Id = reader.GetInt32("Id"),
-                                SteamID = ulong.Parse(reader.GetString("SteamID")),
-                                SteamName = reader.IsDBNull(reader.GetOrdinal("SteamName")) ? null : reader.GetString("SteamName"),
-                                IP = reader.IsDBNull(reader.GetOrdinal("IP")) ? null : reader.GetString("IP"),
-                                HWID = reader.IsDBNull(reader.GetOrdinal("HWID")) ? null : reader.GetString("HWID"),
-                                Reason = reader.IsDBNull(reader.GetOrdinal("Reason")) ? null : reader.GetString("Reason"),
-                                Duration = (uint)reader.GetInt64("Duration"),
-                                PunisherSteamID = ulong.Parse(reader.GetString("PunisherSteamID")),
-                                PunisherName = reader.IsDBNull(reader.GetOrdinal("PunisherName")) ? null : reader.GetString("PunisherName"),
-                                CreatedAt = reader.GetDateTime("CreatedAt"),
-                                ExpiresAt = reader.IsDBNull(reader.GetOrdinal("ExpiresAt")) ? (DateTime?)null : reader.GetDateTime("ExpiresAt"),
-                                IsActive = reader.GetBoolean("IsActive")
-                            });
+                                list.Add(new BanRecord
+                                {
+                                    Id = reader.GetInt32("Id"),
+                                    SteamID = ulong.Parse(reader.GetString("SteamID")),
+                                    SteamName = reader.IsDBNull(reader.GetOrdinal("SteamName")) ? null : reader.GetString("SteamName"),
+                                    IP = reader.IsDBNull(reader.GetOrdinal("IP")) ? null : reader.GetString("IP"),
+                                    HWID = reader.IsDBNull(reader.GetOrdinal("HWID")) ? null : reader.GetString("HWID"),
+                                    Reason = reader.IsDBNull(reader.GetOrdinal("Reason")) ? null : reader.GetString("Reason"),
+                                    Duration = (uint)reader.GetInt64("Duration"),
+                                    PunisherSteamID = ulong.Parse(reader.GetString("PunisherSteamID")),
+                                    PunisherName = reader.IsDBNull(reader.GetOrdinal("PunisherName")) ? null : reader.GetString("PunisherName"),
+                                    CreatedAt = reader.GetDateTime("CreatedAt"),
+                                    ExpiresAt = reader.IsDBNull(reader.GetOrdinal("ExpiresAt")) ? (DateTime?)null : reader.GetDateTime("ExpiresAt"),
+                                    IsActive = reader.GetBoolean("IsActive")
+                                });
+                            }
+                            catch { }
                         }
                         lock (syncLock)
                         {
@@ -166,19 +171,23 @@ CREATE TABLE IF NOT EXISTS `{config.PunishmentsTableName}` (
                         var list = new List<MuteRecord>();
                         while (reader.Read())
                         {
-                            list.Add(new MuteRecord
+                            try
                             {
-                                Id = reader.GetInt32("Id"),
-                                SteamID = ulong.Parse(reader.GetString("SteamID")),
-                                SteamName = reader.IsDBNull(reader.GetOrdinal("SteamName")) ? null : reader.GetString("SteamName"),
-                                Reason = reader.IsDBNull(reader.GetOrdinal("Reason")) ? null : reader.GetString("Reason"),
-                                Duration = (uint)reader.GetInt64("Duration"),
-                                PunisherSteamID = ulong.Parse(reader.GetString("PunisherSteamID")),
-                                PunisherName = reader.IsDBNull(reader.GetOrdinal("PunisherName")) ? null : reader.GetString("PunisherName"),
-                                CreatedAt = reader.GetDateTime("CreatedAt"),
-                                ExpiresAt = reader.IsDBNull(reader.GetOrdinal("ExpiresAt")) ? (DateTime?)null : reader.GetDateTime("ExpiresAt"),
-                                IsActive = reader.GetBoolean("IsActive")
-                            });
+                                list.Add(new MuteRecord
+                                {
+                                    Id = reader.GetInt32("Id"),
+                                    SteamID = ulong.Parse(reader.GetString("SteamID")),
+                                    SteamName = reader.IsDBNull(reader.GetOrdinal("SteamName")) ? null : reader.GetString("SteamName"),
+                                    Reason = reader.IsDBNull(reader.GetOrdinal("Reason")) ? null : reader.GetString("Reason"),
+                                    Duration = (uint)reader.GetInt64("Duration"),
+                                    PunisherSteamID = ulong.Parse(reader.GetString("PunisherSteamID")),
+                                    PunisherName = reader.IsDBNull(reader.GetOrdinal("PunisherName")) ? null : reader.GetString("PunisherName"),
+                                    CreatedAt = reader.GetDateTime("CreatedAt"),
+                                    ExpiresAt = reader.IsDBNull(reader.GetOrdinal("ExpiresAt")) ? (DateTime?)null : reader.GetDateTime("ExpiresAt"),
+                                    IsActive = reader.GetBoolean("IsActive")
+                                });
+                            }
+                            catch { }
                         }
                         lock (syncLock)
                         {
@@ -197,6 +206,8 @@ CREATE TABLE IF NOT EXISTS `{config.PunishmentsTableName}` (
 
         public void SavePlayer(PlayerRecord player)
         {
+            if (player == null || player.SteamID == 0) return;
+
             lock (syncLock)
             {
                 cachedPlayers[player.SteamID] = player;
@@ -223,10 +234,10 @@ ON DUPLICATE KEY UPDATE
                         using (var cmd = new MySqlCommand(query, connection))
                         {
                             cmd.Parameters.AddWithValue("@SteamID", player.SteamID.ToString());
-                            cmd.Parameters.AddWithValue("@SteamName", player.SteamName);
-                            cmd.Parameters.AddWithValue("@IP", player.IP);
-                            cmd.Parameters.AddWithValue("@HWID", player.HWID);
-                            cmd.Parameters.AddWithValue("@Country", player.Country);
+                            cmd.Parameters.AddWithValue("@SteamName", player.SteamName ?? string.Empty);
+                            cmd.Parameters.AddWithValue("@IP", player.IP ?? string.Empty);
+                            cmd.Parameters.AddWithValue("@HWID", player.HWID ?? string.Empty);
+                            cmd.Parameters.AddWithValue("@Country", player.Country ?? "Unknown");
                             cmd.Parameters.AddWithValue("@LastOnline", player.LastOnline);
                             cmd.ExecuteNonQuery();
                         }
@@ -242,6 +253,8 @@ ON DUPLICATE KEY UPDATE
 
         public PlayerRecord GetPlayer(ulong steamId)
         {
+            if (steamId == 0) return null;
+
             lock (syncLock)
             {
                 if (cachedPlayers.TryGetValue(steamId, out PlayerRecord player))
@@ -291,6 +304,8 @@ ON DUPLICATE KEY UPDATE
 
         public void AddBan(BanRecord ban)
         {
+            if (ban == null) return;
+
             lock (syncLock)
             {
                 cachedBans.Add(ban);
@@ -323,13 +338,13 @@ SELECT LAST_INSERT_ID();";
                         using (var cmd = new MySqlCommand(query, connection))
                         {
                             cmd.Parameters.AddWithValue("@SteamID", ban.SteamID.ToString());
-                            cmd.Parameters.AddWithValue("@SteamName", ban.SteamName);
-                            cmd.Parameters.AddWithValue("@IP", ban.IP);
-                            cmd.Parameters.AddWithValue("@HWID", ban.HWID);
-                            cmd.Parameters.AddWithValue("@Reason", ban.Reason);
+                            cmd.Parameters.AddWithValue("@SteamName", ban.SteamName ?? string.Empty);
+                            cmd.Parameters.AddWithValue("@IP", ban.IP ?? string.Empty);
+                            cmd.Parameters.AddWithValue("@HWID", ban.HWID ?? string.Empty);
+                            cmd.Parameters.AddWithValue("@Reason", ban.Reason ?? string.Empty);
                             cmd.Parameters.AddWithValue("@Duration", ban.Duration);
                             cmd.Parameters.AddWithValue("@PunisherSteamID", ban.PunisherSteamID.ToString());
-                            cmd.Parameters.AddWithValue("@PunisherName", ban.PunisherName);
+                            cmd.Parameters.AddWithValue("@PunisherName", ban.PunisherName ?? "Console");
                             cmd.Parameters.AddWithValue("@CreatedAt", ban.CreatedAt);
                             cmd.Parameters.AddWithValue("@ExpiresAt", (object)ban.ExpiresAt ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@IsActive", ban.IsActive ? 1 : 0);
@@ -352,11 +367,13 @@ SELECT LAST_INSERT_ID();";
 
         public void RemoveBan(ulong steamId, string unbannedBy)
         {
+            if (steamId == 0) return;
+
             lock (syncLock)
             {
                 foreach (var ban in cachedBans)
                 {
-                    if (ban.SteamID == steamId && ban.IsActive)
+                    if (ban != null && ban.SteamID == steamId && ban.IsActive)
                     {
                         ban.IsActive = false;
                         ban.UnbannedBy = unbannedBy;
@@ -377,7 +394,7 @@ SELECT LAST_INSERT_ID();";
                         using (var cmd = new MySqlCommand(query, connection))
                         {
                             cmd.Parameters.AddWithValue("@SteamID", steamId.ToString());
-                            cmd.Parameters.AddWithValue("@UnbannedBy", unbannedBy);
+                            cmd.Parameters.AddWithValue("@UnbannedBy", unbannedBy ?? "Console");
                             cmd.Parameters.AddWithValue("@UnbannedAt", DateTime.UtcNow);
                             cmd.ExecuteNonQuery();
                         }
@@ -393,6 +410,8 @@ SELECT LAST_INSERT_ID();";
 
         public void AddMute(MuteRecord mute)
         {
+            if (mute == null) return;
+
             lock (syncLock)
             {
                 cachedMutes.Add(mute);
@@ -425,11 +444,11 @@ SELECT LAST_INSERT_ID();";
                         using (var cmd = new MySqlCommand(query, connection))
                         {
                             cmd.Parameters.AddWithValue("@SteamID", mute.SteamID.ToString());
-                            cmd.Parameters.AddWithValue("@SteamName", mute.SteamName);
-                            cmd.Parameters.AddWithValue("@Reason", mute.Reason);
+                            cmd.Parameters.AddWithValue("@SteamName", mute.SteamName ?? string.Empty);
+                            cmd.Parameters.AddWithValue("@Reason", mute.Reason ?? string.Empty);
                             cmd.Parameters.AddWithValue("@Duration", mute.Duration);
                             cmd.Parameters.AddWithValue("@PunisherSteamID", mute.PunisherSteamID.ToString());
-                            cmd.Parameters.AddWithValue("@PunisherName", mute.PunisherName);
+                            cmd.Parameters.AddWithValue("@PunisherName", mute.PunisherName ?? "Console");
                             cmd.Parameters.AddWithValue("@CreatedAt", mute.CreatedAt);
                             cmd.Parameters.AddWithValue("@ExpiresAt", (object)mute.ExpiresAt ?? DBNull.Value);
                             cmd.Parameters.AddWithValue("@IsActive", mute.IsActive ? 1 : 0);
@@ -452,11 +471,13 @@ SELECT LAST_INSERT_ID();";
 
         public void RemoveMute(ulong steamId, string unmutedBy)
         {
+            if (steamId == 0) return;
+
             lock (syncLock)
             {
                 foreach (var mute in cachedMutes)
                 {
-                    if (mute.SteamID == steamId && mute.IsActive)
+                    if (mute != null && mute.SteamID == steamId && mute.IsActive)
                     {
                         mute.IsActive = false;
                         mute.UnmutedBy = unmutedBy;
@@ -477,7 +498,7 @@ SELECT LAST_INSERT_ID();";
                         using (var cmd = new MySqlCommand(query, connection))
                         {
                             cmd.Parameters.AddWithValue("@SteamID", steamId.ToString());
-                            cmd.Parameters.AddWithValue("@UnmutedBy", unmutedBy);
+                            cmd.Parameters.AddWithValue("@UnmutedBy", unmutedBy ?? "Console");
                             cmd.Parameters.AddWithValue("@UnmutedAt", DateTime.UtcNow);
                             cmd.ExecuteNonQuery();
                         }
@@ -493,6 +514,8 @@ SELECT LAST_INSERT_ID();";
 
         public void AddPunishment(PunishmentRecord punishment)
         {
+            if (punishment == null) return;
+
             lock (syncLock)
             {
                 cachedPunishments.Add(punishment);
@@ -513,11 +536,11 @@ VALUES
 (@Type, @SteamID, @Reason, @PunisherSteamID, @PunisherName, @CreatedAt);";
                         using (var cmd = new MySqlCommand(query, connection))
                         {
-                            cmd.Parameters.AddWithValue("@Type", punishment.Type);
+                            cmd.Parameters.AddWithValue("@Type", punishment.Type ?? string.Empty);
                             cmd.Parameters.AddWithValue("@SteamID", punishment.SteamID.ToString());
-                            cmd.Parameters.AddWithValue("@Reason", punishment.Reason);
+                            cmd.Parameters.AddWithValue("@Reason", punishment.Reason ?? string.Empty);
                             cmd.Parameters.AddWithValue("@PunisherSteamID", punishment.PunisherSteamID.ToString());
-                            cmd.Parameters.AddWithValue("@PunisherName", punishment.PunisherName);
+                            cmd.Parameters.AddWithValue("@PunisherName", punishment.PunisherName ?? "Console");
                             cmd.Parameters.AddWithValue("@CreatedAt", punishment.CreatedAt);
                             cmd.ExecuteNonQuery();
                         }
@@ -535,7 +558,7 @@ VALUES
         {
             lock (syncLock)
             {
-                return new List<BanRecord>(cachedBans);
+                return cachedBans.Where(b => b != null).ToList();
             }
         }
 
@@ -543,23 +566,25 @@ VALUES
         {
             lock (syncLock)
             {
-                return new List<MuteRecord>(cachedMutes);
+                return cachedMutes.Where(m => m != null).ToList();
             }
         }
 
         public BanRecord GetActiveBan(ulong steamId)
         {
+            if (steamId == 0) return null;
             lock (syncLock)
             {
-                return cachedBans.Find(b => b.SteamID == steamId && b.IsActive && !b.IsExpired);
+                return cachedBans.Find(b => b != null && b.SteamID == steamId && b.IsActive && !b.IsExpired);
             }
         }
 
         public MuteRecord GetActiveMute(ulong steamId)
         {
+            if (steamId == 0) return null;
             lock (syncLock)
             {
-                return cachedMutes.Find(m => m.SteamID == steamId && m.IsActive && !m.IsExpired);
+                return cachedMutes.Find(m => m != null && m.SteamID == steamId && m.IsActive && !m.IsExpired);
             }
         }
 
@@ -568,6 +593,8 @@ VALUES
             bans = 0;
             kicks = 0;
             warns = 0;
+
+            if (steamId == 0) return;
 
             if (isConnected)
             {
@@ -606,7 +633,7 @@ VALUES
             {
                 foreach (var p in cachedPunishments)
                 {
-                    if (p.SteamID == steamId)
+                    if (p != null && p.SteamID == steamId)
                     {
                         if (string.Equals(p.Type, "Ban", StringComparison.OrdinalIgnoreCase)) bans++;
                         else if (string.Equals(p.Type, "Kick", StringComparison.OrdinalIgnoreCase)) kicks++;

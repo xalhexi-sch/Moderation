@@ -22,13 +22,15 @@ namespace Moderation.Commands
             var plugin = ModerationPlugin.Instance;
             UnturnedPlayer callerPlayer = (UnturnedPlayer)caller;
 
+            if (callerPlayer == null) return;
+
             if (command.Length < 1)
             {
                 UnturnedChat.Say(caller, plugin.Translate("SpyFail"), plugin.MessageColor);
                 return;
             }
 
-            if (!plugin.CooldownService.CheckCooldown(callerPlayer.CSteamID.m_SteamID, "spy", out double remainingSeconds))
+            if (plugin?.CooldownService != null && !plugin.CooldownService.CheckCooldown(callerPlayer.CSteamID.m_SteamID, "spy", out double remainingSeconds))
             {
                 string formattedWait = DurationParser.FormatDuration((uint)remainingSeconds);
                 UnturnedChat.Say(caller, plugin.Translate("SpyCooldown", formattedWait), plugin.MessageColor);
@@ -36,37 +38,48 @@ namespace Moderation.Commands
             }
 
             UnturnedPlayer targetPlayer = PlayerUtil.FindPlayer(command[0]);
-            if (targetPlayer == null)
+            if (targetPlayer?.Player == null)
             {
                 UnturnedChat.Say(caller, plugin.Translate("PlayerNotFound"), plugin.MessageColor);
                 return;
             }
 
-            targetPlayer.Player.sendScreenshot(callerPlayer.CSteamID, (steamId, data) =>
+            try
             {
-                if (data != null && data.Length > 0)
+                targetPlayer.Player.sendScreenshot(callerPlayer.CSteamID, (steamId, data) =>
                 {
-                    var placeholders = new Dictionary<string, string>
+                    if (data != null && data.Length > 0)
                     {
-                        ["name"] = targetPlayer.CharacterName,
-                        ["steamid"] = targetPlayer.CSteamID.m_SteamID.ToString(),
-                        ["punisher_name"] = callerPlayer.CharacterName,
-                        ["punisher_steamid"] = callerPlayer.CSteamID.m_SteamID.ToString(),
-                        ["server_name"] = Provider.serverName,
-                        ["server_icon"] = plugin.Configuration.Instance.Commands.MessageIconUrl,
-                        ["avatar_url"] = plugin.Configuration.Instance.Commands.MessageIconUrl
-                    };
+                        var placeholders = new Dictionary<string, string>
+                        {
+                            ["name"] = targetPlayer.CharacterName,
+                            ["steamid"] = targetPlayer.CSteamID.m_SteamID.ToString(),
+                            ["punisher_name"] = callerPlayer.CharacterName,
+                            ["punisher_steamid"] = callerPlayer.CSteamID.m_SteamID.ToString(),
+                            ["server_name"] = Provider.serverName ?? "Unturned Server",
+                            ["server_icon"] = plugin?.Configuration?.Instance?.Commands?.MessageIconUrl ?? string.Empty,
+                            ["avatar_url"] = plugin?.Configuration?.Instance?.Commands?.MessageIconUrl ?? string.Empty
+                        };
 
-                    plugin.DiscordWebhookService.SendWebhookList(
-                        plugin.Configuration.Instance.DiscordService.SpyWebhookMessages,
-                        placeholders,
-                        data,
-                        $"{targetPlayer.CSteamID.m_SteamID}_{DateTime.UtcNow.Ticks}.jpg"
-                    );
-                }
-            });
+                        var webhooks = plugin?.Configuration?.Instance?.DiscordService?.SpyWebhookMessages;
+                        if (webhooks != null && plugin?.DiscordWebhookService != null)
+                        {
+                            plugin.DiscordWebhookService.SendWebhookList(
+                                webhooks,
+                                placeholders,
+                                data,
+                                $"{targetPlayer.CSteamID.m_SteamID}_{DateTime.UtcNow.Ticks}.jpg"
+                            );
+                        }
+                    }
+                });
 
-            UnturnedChat.Say(caller, plugin.Translate("SpySuccess", targetPlayer.CharacterName), plugin.MessageColor);
+                UnturnedChat.Say(caller, plugin.Translate("SpySuccess", targetPlayer.CharacterName), plugin.MessageColor);
+            }
+            catch (Exception ex)
+            {
+                UnturnedChat.Say(caller, $"Error executing spy: {ex.Message}", plugin.MessageColor);
+            }
         }
     }
 }

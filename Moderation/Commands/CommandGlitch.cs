@@ -22,6 +22,8 @@ namespace Moderation.Commands
             var plugin = ModerationPlugin.Instance;
             UnturnedPlayer player = (UnturnedPlayer)caller;
 
+            if (player?.Player == null || plugin?.GlitchService == null) return;
+
             if (command.Length > 0 && string.Equals(command[0], "rescan", StringComparison.OrdinalIgnoreCase))
             {
                 int count = plugin.GlitchService.Rescan();

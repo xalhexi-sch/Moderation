@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using Moderation.Models;
-using Moderation.Utils;
-using Rocket.Core.Logging;
 using Rocket.Unturned.Chat;
 using SDG.Unturned;
+using UnityEngine;
+using Logger = Rocket.Core.Logging.Logger;
 
 namespace Moderation.Services
 {
@@ -20,7 +20,7 @@ namespace Moderation.Services
         public UnbanService(ModerationPlugin plugin, UnbanServiceConfiguration config, DatabaseService databaseService, DiscordWebhookService discordService)
         {
             this.plugin = plugin;
-            this.config = config;
+            this.config = config ?? new UnbanServiceConfiguration();
             this.databaseService = databaseService;
             this.discordService = discordService;
         }
@@ -41,19 +41,21 @@ namespace Moderation.Services
         {
             try
             {
-                var bans = databaseService.GetActiveBans();
+                var bans = databaseService?.GetActiveBans();
+                if (bans == null) return;
+
                 foreach (var ban in bans)
                 {
-                    if (ban.IsExpired)
+                    if (ban != null && ban.IsExpired)
                     {
-                        databaseService.RemoveBan(ban.SteamID, "Console");
+                        databaseService?.RemoveBan(ban.SteamID, "Console");
 
-                        if (plugin.Configuration.Instance.Commands.ShouldBroadcastUnban)
+                        if (plugin?.Configuration?.Instance?.Commands?.ShouldBroadcastUnban == true)
                         {
-                            UnturnedChat.Say(plugin.Translate("UnbanExpired", ban.SteamName ?? ban.SteamID.ToString()), plugin.MessageColor);
+                            UnturnedChat.Say(plugin.Translate("UnbanExpired", ban.SteamName ?? ban.SteamID.ToString()), plugin?.MessageColor ?? Color.grey);
                         }
 
-                        if (config.IsEnabled)
+                        if (config.IsEnabled && discordService != null)
                         {
                             var placeholders = new Dictionary<string, string>
                             {
@@ -62,11 +64,15 @@ namespace Moderation.Services
                                 ["reason"] = ban.Reason ?? "Unspecified",
                                 ["punisher_name"] = ban.PunisherName ?? "Console",
                                 ["punisher_steamid"] = ban.PunisherSteamID.ToString(),
-                                ["server_name"] = Provider.serverName,
-                                ["server_icon"] = plugin.Configuration.Instance.Commands.MessageIconUrl,
-                                ["avatar_url"] = plugin.Configuration.Instance.Commands.MessageIconUrl
+                                ["server_name"] = Provider.serverName ?? "Unturned Server",
+                                ["server_icon"] = plugin?.Configuration?.Instance?.Commands?.MessageIconUrl ?? string.Empty,
+                                ["avatar_url"] = plugin?.Configuration?.Instance?.Commands?.MessageIconUrl ?? string.Empty
                             };
-                            discordService.SendWebhookList(plugin.Configuration.Instance.DiscordService.BanExpiredWebhookMessages, placeholders);
+                            var webhooks = plugin?.Configuration?.Instance?.DiscordService?.BanExpiredWebhookMessages;
+                            if (webhooks != null)
+                            {
+                                discordService.SendWebhookList(webhooks, placeholders);
+                            }
                         }
                     }
                 }
