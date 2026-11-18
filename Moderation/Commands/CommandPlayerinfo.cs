@@ -37,6 +37,11 @@ namespace Moderation.Commands
             }
             else if (!PlayerUtil.TryParseSteamID(command[0], out steamId))
             {
+                steamId = plugin.DatabaseService?.FindSteamIdByName(command[0]) ?? 0;
+            }
+
+            if (steamId == 0)
+            {
                 UnturnedChat.Say(caller, plugin.Translate("PlayerNotFound"), plugin.MessageColor);
                 return;
             }
