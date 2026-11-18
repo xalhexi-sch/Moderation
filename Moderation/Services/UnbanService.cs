@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using Moderation.Models;
+using Rocket.Core.Utils;
 using Rocket.Unturned.Chat;
 using SDG.Unturned;
+using Steamworks;
 using UnityEngine;
 using Logger = Rocket.Core.Logging.Logger;
 
@@ -46,21 +48,39 @@ namespace Moderation.Services
 
                 foreach (var ban in bans)
                 {
-                    if (ban != null && ban.IsExpired)
+                    if (ban != null && ban.IsActive && ban.Duration > 0 && ban.ExpiresAt.HasValue && DateTime.UtcNow >= ban.ExpiresAt.Value)
                     {
-                        databaseService?.RemoveBan(ban.SteamID, "Console");
+                        // Mark inactive immediately in-memory so subsequent ticks don't re-trigger
+                        ban.IsActive = false;
+                        ulong targetSteamId = ban.SteamID;
+                        string targetName = ban.SteamName ?? targetSteamId.ToString();
 
-                        if (plugin?.Configuration?.Instance?.Commands?.ShouldBroadcastUnban == true)
+                        databaseService?.RemoveBan(targetSteamId, "Console");
+
+                        // Synchronize with main thread for game chat and native blacklist unban
+                        TaskDispatcher.QueueOnMainThread(() =>
                         {
-                            UnturnedChat.Say(plugin.Translate("UnbanExpired", ban.SteamName ?? ban.SteamID.ToString()), plugin?.MessageColor ?? Color.grey);
-                        }
+                            try
+                            {
+                                SteamBlacklist.unban(new CSteamID(targetSteamId));
+
+                                if (plugin?.Configuration?.Instance?.Commands?.ShouldBroadcastUnban == true)
+                                {
+                                    UnturnedChat.Say(plugin.Translate("UnbanExpired", targetName), plugin?.MessageColor ?? Color.grey);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.LogWarning($"[Moderation] Error in main-thread expired unban action: {ex.Message}");
+                            }
+                        });
 
                         if (config.IsEnabled && discordService != null)
                         {
                             var placeholders = new Dictionary<string, string>
                             {
-                                ["name"] = ban.SteamName ?? ban.SteamID.ToString(),
-                                ["steamid"] = ban.SteamID.ToString(),
+                                ["name"] = targetName,
+                                ["steamid"] = targetSteamId.ToString(),
                                 ["reason"] = ban.Reason ?? "Unspecified",
                                 ["punisher_name"] = ban.PunisherName ?? "Console",
                                 ["punisher_steamid"] = ban.PunisherSteamID.ToString(),

@@ -6,7 +6,7 @@ namespace Moderation.Utils
 {
     public static class DurationParser
     {
-        private static readonly Regex DurationRegex = new Regex(@"(\d+)\s*([a-zA-Z]+)", RegexOptions.Compiled);
+        private static readonly Regex TokenRegex = new Regex(@"(\d+)\s*([a-zA-Z]+)", RegexOptions.Compiled);
 
         public static bool TryParse(string input, out uint seconds, out string formatted)
         {
@@ -18,6 +18,7 @@ namespace Moderation.Utils
 
             input = input.Trim().ToLowerInvariant();
 
+            // Permanent keywords or explicit 0
             if (input == "0" || input == "perm" || input == "permanent" || input == "inf" || input == "infinity")
             {
                 seconds = 0;
@@ -25,14 +26,8 @@ namespace Moderation.Utils
                 return true;
             }
 
-            if (uint.TryParse(input, out uint numericSec))
-            {
-                seconds = numericSec;
-                formatted = FormatDuration(seconds);
-                return true;
-            }
-
-            MatchCollection matches = DurationRegex.Matches(input);
+            // Must contain duration unit (e.g. 1s, 30m, 2h, 7d, 1w, 1y). Pure numbers without units (like "1" in "Rule 1") are NOT parsed as durations.
+            MatchCollection matches = TokenRegex.Matches(input);
             if (matches.Count == 0)
                 return false;
 
@@ -89,6 +84,9 @@ namespace Moderation.Utils
                         return false;
                 }
             }
+
+            if (totalSeconds == 0)
+                return false;
 
             if (totalSeconds > uint.MaxValue)
                 totalSeconds = uint.MaxValue;

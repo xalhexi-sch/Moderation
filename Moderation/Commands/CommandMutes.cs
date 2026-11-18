@@ -18,7 +18,6 @@ namespace Moderation.Commands
         public void Execute(IRocketPlayer caller, string[] command)
         {
             var plugin = ModerationPlugin.Instance;
-            var allMutes = plugin.DatabaseService.GetActiveMutes();
 
             if (command.Length == 0)
             {
@@ -28,6 +27,7 @@ namespace Moderation.Commands
                     return;
                 }
 
+                var allMutes = plugin.DatabaseService.GetActiveMutes();
                 if (allMutes.Count == 0)
                 {
                     UnturnedChat.Say(caller, plugin.Translate("MutesNone"), plugin.MessageColor);
@@ -41,14 +41,26 @@ namespace Moderation.Commands
             }
             else
             {
-                if (!PlayerUtil.TryParseSteamID(command[0], out ulong targetSteamId))
+                string targetArg = command[0];
+                ulong targetSteamId = 0;
+                UnturnedPlayer online = PlayerUtil.FindPlayer(targetArg);
+                if (online != null)
+                {
+                    targetSteamId = online.CSteamID.m_SteamID;
+                }
+                else if (!PlayerUtil.TryParseSteamID(targetArg, out targetSteamId))
+                {
+                    targetSteamId = plugin.DatabaseService?.FindSteamIdByName(targetArg) ?? 0;
+                }
+
+                if (targetSteamId == 0)
                 {
                     UnturnedChat.Say(caller, plugin.Translate("PlayerNotFound"), plugin.MessageColor);
                     return;
                 }
 
-                var playerMutes = allMutes.FindAll(m => m.SteamID == targetSteamId);
-                if (playerMutes.Count == 0)
+                var playerMutes = plugin.DatabaseService.GetAllMutesForPlayer(targetSteamId);
+                if (playerMutes == null || playerMutes.Count == 0)
                 {
                     UnturnedChat.Say(caller, plugin.Translate("MutesNone"), plugin.MessageColor);
                     return;

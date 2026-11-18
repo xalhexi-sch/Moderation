@@ -195,6 +195,34 @@ CREATE TABLE IF NOT EXISTS `{config.PunishmentsTableName}` (
                             cachedMutes.AddRange(list);
                         }
                     }
+
+                    // Preload known players into cache
+                    string playerQuery = $"SELECT * FROM `{config.PlayersTableName}` ORDER BY `LastOnline` DESC LIMIT 1000";
+                    using (var cmd = new MySqlCommand(playerQuery, connection))
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            try
+                            {
+                                ulong sId = ulong.Parse(reader.GetString("SteamID"));
+                                var prec = new PlayerRecord
+                                {
+                                    SteamID = sId,
+                                    SteamName = reader.IsDBNull(reader.GetOrdinal("SteamName")) ? null : reader.GetString("SteamName"),
+                                    IP = reader.IsDBNull(reader.GetOrdinal("IP")) ? null : reader.GetString("IP"),
+                                    HWID = reader.IsDBNull(reader.GetOrdinal("HWID")) ? null : reader.GetString("HWID"),
+                                    Country = reader.IsDBNull(reader.GetOrdinal("Country")) ? null : reader.GetString("Country"),
+                                    LastOnline = reader.GetDateTime("LastOnline")
+                                };
+                                lock (syncLock)
+                                {
+                                    cachedPlayers[sId] = prec;
+                                }
+                            }
+                            catch { }
+                        }
+                    }
                 }
             }
             catch (Exception ex)
@@ -302,12 +330,72 @@ ON DUPLICATE KEY UPDATE
             return null;
         }
 
+        public ulong FindSteamIdByName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return 0;
+            name = name.Trim();
+
+            lock (syncLock)
+            {
+                // Check cached players
+                foreach (var p in cachedPlayers.Values)
+                {
+                    if (string.Equals(p.SteamName, name, StringComparison.OrdinalIgnoreCase))
+                        return p.SteamID;
+                }
+
+                // Check active bans
+                foreach (var b in cachedBans)
+                {
+                    if (b != null && string.Equals(b.SteamName, name, StringComparison.OrdinalIgnoreCase))
+                        return b.SteamID;
+                }
+
+                // Check active mutes
+                foreach (var m in cachedMutes)
+                {
+                    if (m != null && string.Equals(m.SteamName, name, StringComparison.OrdinalIgnoreCase))
+                        return m.SteamID;
+                }
+            }
+
+            if (isConnected)
+            {
+                try
+                {
+                    using (var connection = new MySqlConnection(ConnectionString))
+                    {
+                        connection.Open();
+                        string query = $"SELECT `SteamID` FROM `{config.PlayersTableName}` WHERE LOWER(`SteamName`) = LOWER(@Name) LIMIT 1";
+                        using (var cmd = new MySqlCommand(query, connection))
+                        {
+                            cmd.Parameters.AddWithValue("@Name", name);
+                            object val = cmd.ExecuteScalar();
+                            if (val != null && ulong.TryParse(val.ToString(), out ulong sId))
+                                return sId;
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            return 0;
+        }
+
         public void AddBan(BanRecord ban)
         {
             if (ban == null) return;
 
             lock (syncLock)
             {
+                // Deactivate any existing active bans for this player so old temporary bans don't unban upgraded permanent bans
+                foreach (var old in cachedBans)
+                {
+                    if (old != null && old.SteamID == ban.SteamID && old.IsActive)
+                    {
+                        old.IsActive = false;
+                    }
+                }
                 cachedBans.Add(ban);
             }
 
@@ -329,6 +417,15 @@ ON DUPLICATE KEY UPDATE
                     using (var connection = new MySqlConnection(ConnectionString))
                     {
                         connection.Open();
+
+                        // Deactivate previous active bans in DB
+                        string deactivateQuery = $"UPDATE `{config.BansTableName}` SET `IsActive` = 0 WHERE `SteamID` = @SteamID AND `IsActive` = 1";
+                        using (var cmd = new MySqlCommand(deactivateQuery, connection))
+                        {
+                            cmd.Parameters.AddWithValue("@SteamID", ban.SteamID.ToString());
+                            cmd.ExecuteNonQuery();
+                        }
+
                         string query = $@"
 INSERT INTO `{config.BansTableName}`
 (`SteamID`, `SteamName`, `IP`, `HWID`, `Reason`, `Duration`, `PunisherSteamID`, `PunisherName`, `CreatedAt`, `ExpiresAt`, `IsActive`)
@@ -414,6 +511,13 @@ SELECT LAST_INSERT_ID();";
 
             lock (syncLock)
             {
+                foreach (var old in cachedMutes)
+                {
+                    if (old != null && old.SteamID == mute.SteamID && old.IsActive)
+                    {
+                        old.IsActive = false;
+                    }
+                }
                 cachedMutes.Add(mute);
             }
 
@@ -435,6 +539,14 @@ SELECT LAST_INSERT_ID();";
                     using (var connection = new MySqlConnection(ConnectionString))
                     {
                         connection.Open();
+
+                        string deactivateQuery = $"UPDATE `{config.MutesTableName}` SET `IsActive` = 0 WHERE `SteamID` = @SteamID AND `IsActive` = 1";
+                        using (var cmd = new MySqlCommand(deactivateQuery, connection))
+                        {
+                            cmd.Parameters.AddWithValue("@SteamID", mute.SteamID.ToString());
+                            cmd.ExecuteNonQuery();
+                        }
+
                         string query = $@"
 INSERT INTO `{config.MutesTableName}`
 (`SteamID`, `SteamName`, `Reason`, `Duration`, `PunisherSteamID`, `PunisherName`, `CreatedAt`, `ExpiresAt`, `IsActive`)
@@ -558,7 +670,7 @@ VALUES
         {
             lock (syncLock)
             {
-                return cachedBans.Where(b => b != null).ToList();
+                return cachedBans.Where(b => b != null && b.IsCurrentlyActive).ToList();
             }
         }
 
@@ -566,7 +678,23 @@ VALUES
         {
             lock (syncLock)
             {
-                return cachedMutes.Where(m => m != null).ToList();
+                return cachedMutes.Where(m => m != null && m.IsCurrentlyActive).ToList();
+            }
+        }
+
+        public List<BanRecord> GetAllBansForPlayer(ulong steamId)
+        {
+            lock (syncLock)
+            {
+                return cachedBans.Where(b => b != null && b.SteamID == steamId).ToList();
+            }
+        }
+
+        public List<MuteRecord> GetAllMutesForPlayer(ulong steamId)
+        {
+            lock (syncLock)
+            {
+                return cachedMutes.Where(m => m != null && m.SteamID == steamId).ToList();
             }
         }
 
@@ -575,7 +703,7 @@ VALUES
             if (steamId == 0) return null;
             lock (syncLock)
             {
-                return cachedBans.Find(b => b != null && b.SteamID == steamId && b.IsActive && !b.IsExpired);
+                return cachedBans.Find(b => b != null && b.SteamID == steamId && b.IsCurrentlyActive);
             }
         }
 
@@ -584,7 +712,7 @@ VALUES
             if (steamId == 0) return null;
             lock (syncLock)
             {
-                return cachedMutes.Find(m => m != null && m.SteamID == steamId && m.IsActive && !m.IsExpired);
+                return cachedMutes.Find(m => m != null && m.SteamID == steamId && m.IsCurrentlyActive);
             }
         }
 

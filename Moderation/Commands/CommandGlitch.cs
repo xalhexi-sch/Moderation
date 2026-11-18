@@ -4,6 +4,7 @@ using Moderation.Models;
 using Rocket.API;
 using Rocket.Unturned.Chat;
 using Rocket.Unturned.Player;
+using SDG.Unturned;
 using UnityEngine;
 
 namespace Moderation.Commands
@@ -64,7 +65,11 @@ namespace Moderation.Commands
                 return;
             }
 
-            Vector3 tpPos = glitch.Position + new Vector3(0, 1.5f, 0);
+            // Safe teleport: ensure player is placed at or above ground level so they don't fall into the void
+            float groundY = LevelGround.getHeight(glitch.Position);
+            float safeY = Mathf.Max(glitch.Position.y + 1.5f, groundY + 1.5f);
+            Vector3 tpPos = new Vector3(glitch.Position.x, safeY, glitch.Position.z);
+
             player.Teleport(tpPos, player.Rotation);
             UnturnedChat.Say(caller, plugin.Translate("GlitchTeleported", targetIndex, total), plugin.MessageColor);
         }

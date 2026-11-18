@@ -24,9 +24,15 @@ namespace Moderation.Commands
                 return;
             }
 
-            if (!PlayerUtil.TryParseSteamID(command[0], out ulong targetSteamId))
+            ulong targetSteamId = 0;
+            if (!PlayerUtil.TryParseSteamID(command[0], out targetSteamId))
             {
-                UnturnedChat.Say(caller, plugin.Translate("UnbanInvalid"), plugin.MessageColor);
+                targetSteamId = plugin.DatabaseService?.FindSteamIdByName(command[0]) ?? 0;
+            }
+
+            if (targetSteamId == 0)
+            {
+                UnturnedChat.Say(caller, plugin.Translate("PlayerNotFound"), plugin.MessageColor);
                 return;
             }
 

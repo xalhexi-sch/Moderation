@@ -45,8 +45,20 @@ namespace Moderation.Commands
             }
             else
             {
-                UnturnedChat.Say(caller, plugin.Translate("PlayerNotFound"), plugin.MessageColor);
-                return;
+                targetSteamId = plugin?.DatabaseService?.FindSteamIdByName(targetArg) ?? 0;
+                if (targetSteamId != 0)
+                {
+                    PlayerRecord offlineRec = plugin?.DatabaseService?.GetPlayer(targetSteamId);
+                    if (offlineRec != null)
+                    {
+                        targetName = offlineRec.SteamName ?? targetSteamId.ToString();
+                    }
+                }
+                else
+                {
+                    UnturnedChat.Say(caller, plugin.Translate("PlayerNotFound"), plugin.MessageColor);
+                    return;
+                }
             }
 
             uint duration = 0;

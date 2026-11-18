@@ -15,11 +15,12 @@ namespace Moderation.Models
         public string PunisherName { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? ExpiresAt { get; set; }
-        public bool IsActive { get; set; }
+        public bool IsActive { get; set; } = true;
         public string UnbannedBy { get; set; }
         public DateTime? UnbannedAt { get; set; }
 
-        public bool IsExpired => Duration > 0 && ExpiresAt.HasValue && DateTime.UtcNow >= ExpiresAt.Value;
+        public bool IsExpired => !IsActive || (Duration > 0 && ExpiresAt.HasValue && DateTime.UtcNow >= ExpiresAt.Value);
+        public bool IsCurrentlyActive => IsActive && (Duration == 0 || !ExpiresAt.HasValue || DateTime.UtcNow < ExpiresAt.Value);
 
         public uint RemainingSeconds
         {

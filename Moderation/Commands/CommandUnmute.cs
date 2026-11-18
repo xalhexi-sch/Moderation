@@ -24,9 +24,20 @@ namespace Moderation.Commands
                 return;
             }
 
-            if (!PlayerUtil.TryParseSteamID(command[0], out ulong targetSteamId))
+            ulong targetSteamId = 0;
+            UnturnedPlayer online = PlayerUtil.FindPlayer(command[0]);
+            if (online != null)
             {
-                UnturnedChat.Say(caller, plugin.Translate("UnmuteInvalid"), plugin.MessageColor);
+                targetSteamId = online.CSteamID.m_SteamID;
+            }
+            else if (!PlayerUtil.TryParseSteamID(command[0], out targetSteamId))
+            {
+                targetSteamId = plugin.DatabaseService?.FindSteamIdByName(command[0]) ?? 0;
+            }
+
+            if (targetSteamId == 0)
+            {
+                UnturnedChat.Say(caller, plugin.Translate("PlayerNotFound"), plugin.MessageColor);
                 return;
             }
 

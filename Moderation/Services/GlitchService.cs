@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Moderation.Models;
+using SDG.Framework.Devkit;
 using SDG.Unturned;
 using UnityEngine;
 
@@ -18,6 +19,8 @@ namespace Moderation.Services
                 suspectedGlitches.Clear();
                 playerIndices.Clear();
 
+                var allowlistMgr = UndergroundWhitelistVolumeManager.Get();
+
                 // Scan Barricades
                 if (BarricadeManager.regions != null)
                 {
@@ -35,8 +38,15 @@ namespace Moderation.Services
                                 Vector3 pos = drop.model != null ? drop.model.position : (serverside != null ? serverside.point : Vector3.zero);
                                 float groundY = LevelGround.getHeight(pos);
 
+                                // Check if position is below terrain
                                 if (pos.y < groundY - 1.5f || pos.y < -5f)
                                 {
+                                    // Check if inside legitimate underground allowlist volume (Silo 22, Metro, caves, etc.)
+                                    if (allowlistMgr != null && allowlistMgr.IsPositionInsideAnyVolume(pos))
+                                    {
+                                        continue;
+                                    }
+
                                     suspectedGlitches.Add(new GlitchObject
                                     {
                                         Position = pos,
@@ -70,6 +80,11 @@ namespace Moderation.Services
 
                                 if (pos.y < groundY - 1.5f || pos.y < -5f)
                                 {
+                                    if (allowlistMgr != null && allowlistMgr.IsPositionInsideAnyVolume(pos))
+                                    {
+                                        continue;
+                                    }
+
                                     suspectedGlitches.Add(new GlitchObject
                                     {
                                         Position = pos,

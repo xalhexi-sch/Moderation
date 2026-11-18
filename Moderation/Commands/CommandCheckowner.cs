@@ -34,15 +34,17 @@ namespace Moderation.Commands
 
             ulong ownerId = 0;
             string objectType = null;
+            Transform hitTransform = hit.transform;
 
-            // Check Barricade
+            // 1. Check Barricade using DamageTool.getBarricadeRootTransform to resolve child sub-colliders
             try
             {
-                BarricadeDrop barricade = BarricadeManager.FindBarricadeByRootTransform(hit.transform);
+                Transform barricadeRoot = DamageTool.getBarricadeRootTransform(hitTransform);
+                BarricadeDrop barricade = BarricadeManager.FindBarricadeByRootTransform(barricadeRoot);
                 if (barricade != null)
                 {
                     var data = barricade.GetServersideData();
-                    if (data != null)
+                    if (data != null && data.owner != 0)
                     {
                         ownerId = data.owner;
                         objectType = "barricade";
@@ -51,16 +53,17 @@ namespace Moderation.Commands
             }
             catch { }
 
-            // Check Structure
+            // 2. Check Structure using DamageTool.getStructureRootTransform to resolve child sub-colliders
             if (ownerId == 0)
             {
                 try
                 {
-                    StructureDrop structure = StructureManager.FindStructureByRootTransform(hit.transform);
+                    Transform structureRoot = DamageTool.getStructureRootTransform(hitTransform);
+                    StructureDrop structure = StructureManager.FindStructureByRootTransform(structureRoot);
                     if (structure != null)
                     {
                         var data = structure.GetServersideData();
-                        if (data != null)
+                        if (data != null && data.owner != 0)
                         {
                             ownerId = data.owner;
                             objectType = "structure";
@@ -70,16 +73,30 @@ namespace Moderation.Commands
                 catch { }
             }
 
-            // Check Vehicle
+            // 3. Check Vehicle
             if (ownerId == 0)
             {
                 try
                 {
-                    InteractableVehicle vehicle = DamageTool.getVehicle(hit.transform);
+                    InteractableVehicle vehicle = DamageTool.getVehicle(hitTransform);
                     if (vehicle != null && vehicle.isLocked && vehicle.lockedOwner.m_SteamID != 0)
                     {
                         ownerId = vehicle.lockedOwner.m_SteamID;
                         objectType = "locked vehicle";
+                    }
+                }
+                catch { }
+            }
+
+            // 4. Fallback using Unturned's DamageTool.TryFindOwnership
+            if (ownerId == 0)
+            {
+                try
+                {
+                    if (DamageTool.TryFindOwnership(hitTransform, out ulong fallbackOwner, out _) && fallbackOwner != 0)
+                    {
+                        ownerId = fallbackOwner;
+                        objectType = "object";
                     }
                 }
                 catch { }
@@ -92,7 +109,7 @@ namespace Moderation.Commands
             }
 
             var activeBan = plugin?.DatabaseService?.GetActiveBan(ownerId);
-            bool isBanned = activeBan != null && !activeBan.IsExpired;
+            bool isBanned = activeBan != null && activeBan.IsCurrentlyActive;
 
             PlayerRecord playerRec = plugin?.DatabaseService?.GetPlayer(ownerId);
             string ownerName = playerRec != null && !string.IsNullOrEmpty(playerRec.SteamName) ? playerRec.SteamName : ownerId.ToString();

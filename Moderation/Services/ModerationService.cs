@@ -50,7 +50,7 @@ namespace Moderation.Services
                     var ban = databaseService.GetActiveBan(steamId);
                     if (ban != null)
                     {
-                        if (ban.IsExpired)
+                        if (!ban.IsCurrentlyActive)
                         {
                             databaseService.RemoveBan(steamId, "Console");
                         }
@@ -83,7 +83,7 @@ namespace Moderation.Services
                     {
                         foreach (var activeBan in activeBans)
                         {
-                            if (activeBan == null || activeBan.SteamID == steamId || activeBan.IsExpired)
+                            if (activeBan == null || activeBan.SteamID == steamId || !activeBan.IsCurrentlyActive)
                                 continue;
 
                             if (!string.IsNullOrEmpty(activeBan.HWID))
@@ -120,7 +120,7 @@ namespace Moderation.Services
                 {
                     foreach (var activeBan in activeBans)
                     {
-                        if (activeBan == null || activeBan.SteamID == steamId || activeBan.IsExpired)
+                        if (activeBan == null || activeBan.SteamID == steamId || !activeBan.IsCurrentlyActive)
                             continue;
 
                         if (!string.IsNullOrEmpty(activeBan.IP) && string.Equals(activeBan.IP, remoteIpStr, StringComparison.OrdinalIgnoreCase))
@@ -193,7 +193,7 @@ namespace Moderation.Services
             if (databaseService != null)
             {
                 var existingBan = databaseService.GetActiveBan(targetSteamId);
-                if (existingBan != null && !existingBan.IsExpired)
+                if (existingBan != null && existingBan.IsCurrentlyActive)
                 {
                     if (existingBan.Duration == 0)
                     {
@@ -228,6 +228,38 @@ namespace Moderation.Services
             };
 
             databaseService?.AddBan(newBan);
+
+            // Synchronize with native Unturned blacklist
+            try
+            {
+                uint ipUint = string.IsNullOrEmpty(ip) ? 0 : Parser.getUInt32FromIP(ip);
+                List<byte[]> hwidBytes = null;
+                if (!string.IsNullOrEmpty(hwid))
+                {
+                    hwidBytes = new List<byte[]>();
+                    string[] parts = hwid.Split(';');
+                    foreach (var part in parts)
+                    {
+                        if (string.IsNullOrWhiteSpace(part)) continue;
+                        try
+                        {
+                            string clean = part.Trim();
+                            byte[] bytes = new byte[clean.Length / 2];
+                            for (int i = 0; i < bytes.Length; i++)
+                            {
+                                bytes[i] = Convert.ToByte(clean.Substring(i * 2, 2), 16);
+                            }
+                            hwidBytes.Add(bytes);
+                        }
+                        catch { }
+                    }
+                }
+                SteamBlacklist.ban(new CSteamID(targetSteamId), ipUint, hwidBytes, new CSteamID(punisherSteamId), reason, duration);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning($"[Moderation] Failed to sync native blacklist ban: {ex.Message}");
+            }
 
             // Kick player if online
             UnturnedPlayer online = UnturnedPlayer.FromCSteamID(new CSteamID(targetSteamId));
@@ -279,7 +311,15 @@ namespace Moderation.Services
             }
 
             databaseService?.RemoveBan(targetSteamId, punisherName);
-            SteamBlacklist.unban(new CSteamID(targetSteamId));
+
+            try
+            {
+                SteamBlacklist.unban(new CSteamID(targetSteamId));
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning($"[Moderation] Failed to sync native blacklist unban: {ex.Message}");
+            }
 
             string targetName = existingBan.SteamName ?? targetSteamId.ToString();
 
