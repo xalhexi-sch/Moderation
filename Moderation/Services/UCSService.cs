@@ -28,7 +28,7 @@ namespace Moderation.Services
         public bool CheckUCSBan(SteamPlayerID playerId, uint remoteIp, out string banMessage)
         {
             banMessage = null;
-            if (config == null || !config.Enabled || string.IsNullOrWhiteSpace(config.APIKey) || config.APIKey == "APIKey")
+            if (ReferenceEquals(playerId, null) || config == null || !config.Enabled || string.IsNullOrWhiteSpace(config.APIKey) || config.APIKey == "APIKey")
             {
                 return false;
             }

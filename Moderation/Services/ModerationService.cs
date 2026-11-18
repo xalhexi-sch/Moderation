@@ -40,7 +40,7 @@ namespace Moderation.Services
         {
             try
             {
-                if (playerID == null) return;
+                if (ReferenceEquals(playerID, null)) return;
                 ulong steamId = playerID.steamID.m_SteamID;
                 string remoteIpStr = Parser.getIPFromUInt32(remoteIP);
 
@@ -154,7 +154,7 @@ namespace Moderation.Services
 
         private void TriggerBanEvaderWebhook(SteamPlayerID evaderID, string method, BanRecord originalBan, string timeLeft)
         {
-            if (discordService == null || originalBan == null || evaderID == null) return;
+            if (discordService == null || originalBan == null || ReferenceEquals(evaderID, null)) return;
             try
             {
                 var placeholders = new Dictionary<string, string>

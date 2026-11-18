@@ -25,7 +25,6 @@ namespace Moderation.Services
         {
             if (player == null) return;
 
-            // Extract all Unity and Unturned properties synchronously on the main game thread
             ulong steamId = 0;
             string steamName = string.Empty;
             string ip = string.Empty;
@@ -35,19 +34,8 @@ namespace Moderation.Services
             {
                 steamId = player.CSteamID.m_SteamID;
                 steamName = player.CharacterName ?? player.SteamName ?? steamId.ToString();
-
-                // Safe IP resolution
-                ip = player.IP;
-                if (string.IsNullOrEmpty(ip) && player.Player?.channel?.owner != null)
-                {
-                    ip = PlayerUtil.GetIPString(player.Player.channel.owner);
-                }
-
-                // Safe HWID resolution
-                if (player.Player?.channel?.owner?.playerID != null)
-                {
-                    hwid = PlayerUtil.GetHwidsString(player.Player.channel.owner.playerID);
-                }
+                ip = PlayerUtil.GetIP(player);
+                hwid = PlayerUtil.GetHwids(player);
             }
             catch (Exception ex)
             {
@@ -56,7 +44,6 @@ namespace Moderation.Services
 
             if (steamId == 0) return;
 
-            // Offload HTTP GeoIP and Database saving to background thread with pre-resolved values
             Task.Run(async () =>
             {
                 try

@@ -78,7 +78,7 @@ namespace Moderation.Services
 
         private void OnChatted(SteamPlayer player, EChatMode mode, ref Color chatted, ref bool isRich, string text, ref bool isVisible)
         {
-            if (player?.playerID?.steamID == null) return;
+            if (player == null || ReferenceEquals(player.playerID, null)) return;
             try
             {
                 ulong steamId = player.playerID.steamID.m_SteamID;
@@ -99,7 +99,7 @@ namespace Moderation.Services
 
         private void OnRelayVoice(PlayerVoice speaker, bool wantsToUseWalkieTalkie, ref bool shouldAllow, ref bool shouldBroadcastOverRadio, ref PlayerVoice.RelayVoiceCullingHandler cullingHandler)
         {
-            if (speaker?.player?.channel?.owner?.playerID?.steamID == null) return;
+            if (speaker?.player?.channel?.owner == null || ReferenceEquals(speaker.player.channel.owner.playerID, null)) return;
             try
             {
                 ulong steamId = speaker.player.channel.owner.playerID.steamID.m_SteamID;

@@ -37,15 +37,8 @@ namespace Moderation.Commands
             {
                 targetSteamId = onlineTarget.CSteamID.m_SteamID;
                 targetName = onlineTarget.CharacterName;
-                ip = onlineTarget.IP;
-                if (string.IsNullOrEmpty(ip) && onlineTarget.Player?.channel?.owner != null)
-                {
-                    ip = PlayerUtil.GetIPString(onlineTarget.Player.channel.owner);
-                }
-                if (onlineTarget.Player?.channel?.owner?.playerID != null)
-                {
-                    hwid = PlayerUtil.GetHwidsString(onlineTarget.Player.channel.owner.playerID);
-                }
+                ip = PlayerUtil.GetIP(onlineTarget);
+                hwid = PlayerUtil.GetHwids(onlineTarget);
             }
             else if (PlayerUtil.TryParseSteamID(targetArg, out targetSteamId))
             {

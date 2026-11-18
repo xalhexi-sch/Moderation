@@ -28,7 +28,7 @@ namespace Moderation.Utils
             if (string.IsNullOrWhiteSpace(input))
                 return false;
 
-            if (ulong.TryParse(input, out steamId) && steamId > 76561190000000000)
+            if (ulong.TryParse(input, out steamId) && (steamId > 76561190000000000 || input.Length == 17))
                 return true;
 
             UnturnedPlayer p = UnturnedPlayer.FromName(input);
@@ -41,9 +41,48 @@ namespace Moderation.Utils
             return false;
         }
 
+        public static string GetIP(UnturnedPlayer player)
+        {
+            if (player == null) return string.Empty;
+            try
+            {
+                if (player.Player != null && player.Player.channel != null && player.Player.channel.owner != null)
+                {
+                    string addr = GetIPString(player.Player.channel.owner);
+                    if (!string.IsNullOrEmpty(addr)) return addr;
+                }
+                return player.IP ?? string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        public static string GetHwids(UnturnedPlayer player)
+        {
+            if (player == null || player.Player == null || player.Player.channel == null)
+                return string.Empty;
+
+            try
+            {
+                var owner = player.Player.channel.owner;
+                if (owner != null)
+                {
+                    return GetHwidsString(owner.playerID);
+                }
+            }
+            catch { }
+
+            return string.Empty;
+        }
+
         public static string GetHwidsString(SteamPlayerID playerID)
         {
-            if (playerID == null) return string.Empty;
+            // CRITICAL: SteamPlayerID has a bugged operator == / operator != in Unturned SDK that throws NullReferenceException on null comparisons.
+            // MUST use ReferenceEquals to check for null!
+            if (ReferenceEquals(playerID, null)) return string.Empty;
+
             try
             {
                 IEnumerable<byte[]> hwids = playerID.GetHwids();
